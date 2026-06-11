@@ -70,20 +70,42 @@ jekwc <file>
 
 ---
 
-## Installing a tool
+## Build system
 
-Each tool has a `Makefile`. To compile and install a tool so it's available anywhere on your system:
+The repo uses a two-level Makefile structure:
+
+- **Root `Makefile`** — orchestrates all tools from one place. Run from the repo root.
+- **Per-tool `Makefile`** — builds and installs that tool in isolation. Run from inside a tool's directory.
+
+Both support the same targets (`all`, `install`, `uninstall`, `clean`). The root one just delegates each target down to every tool's Makefile using `make -C <dir>`.
+
+### Install everything at once
+
+```sh
+make install
+```
+
+This builds and installs all tools to `~/.local/bin/`.
+
+### Work on a single tool
 
 ```sh
 cd jek_cat
 make install
 ```
 
-This compiles the binary and copies it to `~/.local/bin/`. After that you can run it from any directory:
+Useful when you only want to build or reinstall one tool without touching the others.
 
-```sh
-jekcat somefile.txt
-```
+### All make targets
+
+| Command | Effect |
+|---------|--------|
+| `make` | Compile all tools (no install) |
+| `make install` | Compile and install all tools to `~/.local/bin` |
+| `make uninstall` | Remove all tools from `~/.local/bin` |
+| `make clean` | Remove compiled binaries from all project folders |
+
+The per-tool Makefiles support the same commands from inside the tool's directory.
 
 **If your shell says "command not found"** after installing, `~/.local/bin` is not in your `PATH`. Add this line to your `~/.bashrc` (or `~/.zshrc` if you use zsh):
 
@@ -92,15 +114,6 @@ export PATH="$HOME/.local/bin:$PATH"
 ```
 
 Then reload your shell with `source ~/.bashrc`.
-
-**Other make commands**
-
-| Command | Effect |
-|---------|--------|
-| `make` | Compile the binary (no install) |
-| `make install` | Compile and install to `~/.local/bin` |
-| `make uninstall` | Remove the binary from `~/.local/bin` |
-| `make clean` | Remove the compiled binary from the project folder |
 
 ## Status
 
