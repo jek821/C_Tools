@@ -64,14 +64,16 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    if (copy_fd_to_stdout(fd) == -1)
-    {
-        return 1;
-    }
-
+    int cat_result = copy_fd_to_stdout(fd);
+    
     if (close(fd) == -1)
     {
         fprintf(stderr, "Error Closing File %s\n", argv[1]);
+        return 1;
+    }
+
+       if (copy_fd_to_stdout(fd) == -1)
+    {
         return 1;
     }
 
