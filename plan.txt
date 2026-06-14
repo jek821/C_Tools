@@ -4,6 +4,8 @@ jeksync roadmap
 Goal: build a custom file tracking and syncing tool (jeksync).
 Each tool below teaches a skill that jeksync directly depends on.
 
+--- C DOMAIN ---
+
 PHASE 1 - File I/O
   jekwc   -- counting bytes/words/lines, multi-file handling
   jekcp   -- write syscalls (O_WRONLY, O_CREAT, O_TRUNC), creating and overwriting files
@@ -25,18 +27,39 @@ PHASE 6 - Encryption
   jekencrypt -- encrypt/decrypt files with libsodium, key generation, nonces
                (only phase where you lean on a library rather than syscalls)
 
-PHASE 7 - Networking
-  jeksend -- client: socket(), connect(), send() a file to a server
-  jekrecv -- server: socket(), bind(), listen(), accept(), recv() and write to disk
-             essentially jekcp over a network
-             then layer jekencrypt on top to send encrypted files
+PHASE 7 - Concurrency
+  jekpar  -- parallel file hashing with pthreads, mutex, work queue
+  jeksig  -- signal handling: SIGPIPE, SIGTERM, graceful shutdown
+             (signals + threads interact in non-obvious ways -- cover together)
 
-PHASE 8 - jeksync
-  combine everything:
+PHASE 8 - Wire Protocol (C)
+  jekproto -- design and parse a simple binary protocol: length-prefixed messages,
+              message types (FILE_LIST, CHECKSUM, COMMAND), serialization/deserialization
+              (the foundation jeksend/jekrecv will speak)
+
+PHASE 9 - Networking (C)
+  jeksend -- client: socket(), connect(), send() a file using jekproto framing
+  jekrecv -- server: socket(), bind(), listen(), accept(), recv() and write to disk
+             layer jekencrypt on top to send encrypted files
+
+--- RUST PIVOT ---
+  "We've built jeksync piece by piece in C. Now we know exactly what breaks
+   at scale: silent data races, unhandled SIGPIPE, error codes you can forget
+   to check, protocol parsing with no exhaustiveness guarantees.
+   Here's how Rust closes each of those holes."
+
+PHASE 10 - Rust Rewrite: Wire Protocol + Networking
+  jekproto-rs -- rewrite jekproto in Rust: enums + pattern matching vs C structs,
+                 exhaustive message handling, Result for parse errors
+  jeknet-rs   -- rewrite jeksend/jekrecv in Rust with tokio async I/O,
+                 Arc<Mutex<T>> for shared state, fearless concurrency
+
+PHASE 11 - jeksync (Rust)
+  combine everything in Rust:
     - jekfind  to walk a directory tree
     - jeksum   to hash files and detect what changed
     - jekdiff  to compare local and remote state
     - jekencrypt to encrypt before sending
-    - jeksend/jekrecv to transfer over the wire
+    - jekproto-rs / jeknet-rs to transfer over the wire
 
-tools: 10 (excluding jeksync itself)
+tools: 14 C tools + 2 Rust rewrites + jeksync

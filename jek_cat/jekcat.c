@@ -1,70 +1,79 @@
-#include <fcntl.h>
 #include <stdio.h>
 #include <unistd.h>
+#include <fcntl.h>
 
-int write_all_bytes(int output_fd, const char *buffer, ssize_t bytes_to_write) {
+int write_all_bytes(const char *buffer, ssize_t num_bytes)
+{
     ssize_t total_bytes_written = 0;
-
-    while (total_bytes_written < bytes_to_write) {
-
-        ssize_t bytes_written =
-            write(output_fd, buffer + total_bytes_written, bytes_to_write - total_bytes_written);
-        if (bytes_written == -1) {
-            perror("write");
-            return 1;
+    while (total_bytes_written < num_bytes)
+    {
+        ssize_t bytes_written = write(STDOUT_FILENO, buffer + total_bytes_written, num_bytes - total_bytes_written);
+        if (bytes_written == -1)
+        {
+            perror("Write Error");
+            return -1;
         }
+        // fprintf(stdout, "Wrote %zu bytes to stdout\n", bytes_written);
         total_bytes_written += bytes_written;
     }
     return 0;
 }
 
-int copy_fd_to_stdout(int input_fd) {
+int copy_fd_to_stdout(int fd)
+{
     char buffer[4096];
     ssize_t bytes_read;
 
-    while (1) {
-        bytes_read = read(input_fd, buffer, sizeof(buffer));
-
-        if (bytes_read == -1) {
-            perror("read");
-            close(input_fd);
-            return 1;
+    while ((bytes_read = read(fd, buffer, sizeof(buffer))) != 0)
+    {
+        if (bytes_read == -1)
+        {
+            perror("Read Error");
+            return -1;
         }
-
-        if (bytes_read == 0) {
-            close(input_fd);
-            return 0;
-        }
-
-        int write_status = write_all_bytes(STDOUT_FILENO, buffer, bytes_read);
-
-        if (write_status != 0) {
-            close(input_fd);
-            return 1;
+        if (write_all_bytes(buffer, bytes_read) == -1)
+        {
+            return -1;
         }
     }
+    return 0;
 }
 
-int main(int argc, char *argv[]) {
-    if (argc <= 1) {
-        fprintf(stderr, "usage: jekcat <file>\n");
+int get_fd(const char *file_name)
+{
+    int fd = open(file_name, O_RDONLY);
+    if (fd == -1)
+    {
+        perror("Error Opening File");
+        return -1;
+    }
+    return fd;
+}
+
+int main(int argc, char *argv[])
+{
+    if (argc != 2)
+    {
+        fprintf(stderr, "Usage: ./jek_cat <file>\n");
         return 1;
     }
 
-    int input_fd = open(argv[1], O_RDONLY);
-
-    if (input_fd == -1) {
-        perror("open");
+    int fd = get_fd(argv[1]);
+    if (fd == -1)
+    {
         return 1;
     }
 
-    int write_result_status = copy_fd_to_stdout(input_fd);
-    if (write_result_status == 1) {
+    if (copy_fd_to_stdout(fd) == -1)
+    {
         return 1;
     }
-    write_result_status = write(STDOUT_FILENO, "\n", 1);
-    if (write_result_status == -1) {
-        perror("write");
+
+    if (close(fd) == -1)
+    {
+        fprintf(stderr, "Error Closing File %s\n", argv[1]);
         return 1;
     }
+
+    return 0;
 }

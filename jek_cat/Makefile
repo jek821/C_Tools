@@ -1,9 +1,14 @@
 # Variables — defined once here, referenced below as $(NAME)
-CC      = gcc                  # the compiler to use
-CFLAGS  = -Wall -Wextra        # warning flags: catch common mistakes at compile time
-TARGET  = jekcat               # name of the output binary
-SRC     = jekcat.c             # source file(s) to compile
-BINDIR  = $(HOME)/.local/bin   # install destination; $(HOME) expands to your home dir
+# CC: the compiler to use
+CC      = gcc
+# CFLAGS: warning flags — catch common mistakes at compile time
+CFLAGS  = -Wall -Wextra
+# TARGET: name of the output binary
+TARGET  = jekcat
+# SRC: source file(s) to compile
+SRC     = jekcat.c
+# BINDIR: install destination; $(HOME) expands to your home dir
+BINDIR  = $(HOME)/.local/bin
 
 # Default target — runs when you type `make` with no arguments.
 # Depends on $(SRC), so if the source hasn't changed since last compile, make skips this.
@@ -13,14 +18,14 @@ $(TARGET): $(SRC)
 # Install target — runs when you type `make install`.
 # Depends on $(TARGET), so make builds the binary first if needed.
 install: $(TARGET)
-	mkdir -p $(BINDIR)                    # create ~/.local/bin if it doesn't exist (-p means no error if it already does)
-	cp $(TARGET) $(BINDIR)/$(TARGET)      # copy the binary there
+	mkdir -p $(BINDIR)
+	cp $(TARGET) $(BINDIR)/$(TARGET)
 	@echo "Installed to $(BINDIR)/$(TARGET)"
 	@echo "If 'jekcat' is not found, add $(BINDIR) to your PATH."
 
 # Uninstall target — removes the binary from the install location.
 uninstall:
-	rm -f $(BINDIR)/$(TARGET)    # -f means no error if the file doesn't exist
+	rm -f $(BINDIR)/$(TARGET)
 
 # Clean target — removes the compiled binary from this project folder.
 clean:
