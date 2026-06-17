@@ -1,0 +1,95 @@
+REFACTOR PLAN: Bring jek_wc and jek_ls to jek_cat quality
+==========================================================
+
+Reference: jek_cat is the gold standard — clean POSIX syscalls, full error
+handling, 8-case test suite in test.sh, correct Makefile with a `test` target.
+
+
+─────────────────────────────────────────
+jek_wc (jek_wc/jekwc.c + Makefile + new test.sh)
+─────────────────────────────────────────
+
+SOURCE FIXES (jekwc.c)
+  1. Zero-initialize opts struct:
+       Options opts;  →  Options opts = {0};
+  2. Initialize counters to zero:
+       ssize_t bytes = 0;
+       long lines = 0;
+       long words = 0;
+  3. Validate argc: before accessing argv[flag_count + 1], verify the index
+     is within bounds; if not, print usage to stderr and return 1.
+  4. Handle handle_flags() returning -1 (invalid flag): return 1 in main.
+  5. Remove debug comment "// hello hello" at line 62.
+
+MAKEFILE FIXES (jek_wc/Makefile)
+  Add test target and update .PHONY:
+    test: $(TARGET)
+        bash test.sh
+    .PHONY: install uninstall clean test
+
+NEW FILE: jek_wc/test.sh
+  Mirror jek_cat/test.sh structure (check() helper, mktemp setup, teardown).
+  Test cases:
+    1.  -l line count on known content
+    2.  -w word count on known content
+    3.  -b byte count on known content
+    4.  -blw combined on a file
+    5.  Large file (>4096 bytes) — counts correct across buffer boundary
+    6.  Words split across buffer boundary — count correct
+    7.  Empty file — all counts 0
+    8.  Valid file exits 0
+    9.  Missing file exits 1
+    10. No args exits 1
+    11. Invalid flag exits 1
+
+
+─────────────────────────────────────────
+jek_ls (jek_ls/jek_ls.c + Makefile + new test.sh)
+─────────────────────────────────────────
+
+MAKEFILE FIXES (jek_ls/Makefile)
+  Fix broken source name: SRC = jek_ls.c  (currently wrongly set to jekls.c)
+  Add test target and update .PHONY:
+    test: $(TARGET)
+        bash test.sh
+    .PHONY: install uninstall clean test
+
+SOURCE FIXES (jek_ls/jek_ls.c)
+  1. Fix memory leak: replace malloc(sizeof(struct stat)) with a stack-allocated
+     struct stat buff; and pass &buff to fd_to_buff().
+  2. Remove debug mtime output: delete the localtime/strftime/printf("Formatted
+     time: ...") block — not standard ls default behavior.
+  3. Skip "." and ".." entries by default (standard ls behavior).
+  4. Add -a flag via getopt: without -a, skip entries where d_name[0] == '.'.
+  5. Accept optional path argument: if argc > 1, opendir(argv[optind]);
+     otherwise opendir(".").
+  6. Reset ANSI color after directory names: append \033[0m so subsequent
+     output isn't colored.
+  7. Return 1 on any error (opendir failure, etc.), 0 on success.
+
+NEW FILE: jek_ls/test.sh
+  Create a temp directory with known contents (files, hidden files, a subdir).
+  Test cases:
+    1.  Lists files in a given directory
+    2.  Does not show hidden files by default
+    3.  -a shows hidden files
+    4.  Subdirectories appear in output
+    5.  Valid directory exits 0
+    6.  Missing directory exits 1
+    7.  No args (lists current dir) exits 0
+    8.  Invalid flag exits 1
+
+
+─────────────────────────────────────────
+VERIFICATION
+─────────────────────────────────────────
+
+  make clean && make && make test   # builds and runs all three test suites
+
+  Manual spot-checks:
+    echo "hello world" > /tmp/t.txt
+    ./jek_wc/jekwc -blw /tmp/t.txt   # Lines: 1 / Words: 2 / Bytes: 12
+
+    ./jek_ls/jekls /tmp              # lists /tmp
+    ./jek_ls/jekls                   # lists current dir
+    ./jek_ls/jekls -a                # also shows dotfiles
