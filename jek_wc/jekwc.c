@@ -82,7 +82,7 @@ int get_data(int fd, File_Data *file_data, Flags *flags) {
       file_data->byte_count += bytes_read;
     }
     if (flags->show_lines) {
-      file_data->byte_count
+      file_data->byte_count;
     }
   }
 }
