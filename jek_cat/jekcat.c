@@ -1,3 +1,4 @@
+#include "jekcat.h"
 #include <fcntl.h>
 #include <stdio.h>
 #include <unistd.h>
@@ -6,7 +7,7 @@ int write_all_bytes(const char *buffer, ssize_t num_bytes) {
   ssize_t total_bytes_written = 0;
   while (total_bytes_written < num_bytes) {
     ssize_t bytes_written = write(STDOUT_FILENO, buffer + total_bytes_written,
-                                  num_bytes - total_bytes_written);
+                                  (size_t)(num_bytes - total_bytes_written));
     if (bytes_written == -1) {
       perror("Write Error");
       return -1;
