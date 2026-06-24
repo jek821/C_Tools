@@ -3,14 +3,16 @@
 CC      = gcc
 # CFLAGS: strict compile-time checks (see Docs/strict_compile.txt).
 #   -std=c11 -Wpedantic       strict ISO C11, no silent extensions
-#   -D_POSIX_C_SOURCE=200809L exposes the POSIX API (open/read/getopt/...)
-#                             that strict ISO mode would otherwise hide
+#   -D_DEFAULT_SOURCE         exposes the POSIX + BSD APIs (getopt/optind,
+#                             struct dirent d_type/DT_*, st_mtim, ...) that
+#                             strict ISO mode would otherwise hide. Set here,
+#                             once, instead of as a #define in any .c file.
 #   -Wall -Wextra             the common + extra warning sets
 #   -Wshadow                  warn on shadowed variables
 #   -Wstrict-prototypes -Wmissing-prototypes   require real prototypes
 #   -Wconversion              warn on implicit type conversions
 #   -Werror                   treat every warning as a build failure
-CFLAGS  = -std=c11 -D_POSIX_C_SOURCE=200809L -Wall -Wextra -Wpedantic \
+CFLAGS  = -std=c11 -D_DEFAULT_SOURCE -Wall -Wextra -Wpedantic \
           -Wshadow -Wstrict-prototypes -Wmissing-prototypes -Wconversion -Werror
 # TARGET: name of the output binary
 TARGET  = jekcat

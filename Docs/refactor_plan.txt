@@ -46,7 +46,7 @@ NAMING (do this first — the build is broken)
 MAKEFILE FIXES (jek_ls/Makefile)
 ─────────────────────────────────────────
   1. Adopt the strict standard (match jek_wc / jek_cat):
-       CFLAGS = -std=c11 -D_POSIX_C_SOURCE=200809L -Wall -Wextra -Wpedantic \
+       CFLAGS = -std=c11 -D_DEFAULT_SOURCE -Wall -Wextra -Wpedantic \
                 -Wshadow -Wstrict-prototypes -Wmissing-prototypes \
                 -Wconversion -Werror
   2. Add test target and update .PHONY:
@@ -79,8 +79,8 @@ SOURCE FIXES (jekls.c)
       (fixes 5 & 6) actually use them.
   11. Remove the unused <fcntl.h> include.
   12. Feature macros: -D_POSIX_C_SOURCE alone does NOT expose d_type (DT_DIR)
-      or st_mtim. Keep `#define _DEFAULT_SOURCE` at the very top of the file
-      (before any include) so those stay visible under the strict build.
+      or st_mtim. Use -D_DEFAULT_SOURCE (a superset) in the Makefile CFLAGS
+      instead — no per-file #define. All three tools now share this one flag.
 
 
 ─────────────────────────────────────────

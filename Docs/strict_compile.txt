@@ -1,5 +1,10 @@
-gcc -std=c11 -D_POSIX_C_SOURCE=200809L -Wall -Wextra -Wpedantic -Wshadow -Wstrict-prototypes -Wmissing-prototypes -Wconversion -Werror -o <output> <target>
+gcc -std=c11 -D_DEFAULT_SOURCE -Wall -Wextra -Wpedantic -Wshadow -Wstrict-prototypes -Wmissing-prototypes -Wconversion -Werror -o <output> <target>
 
-Note: -D_POSIX_C_SOURCE=200809L is required. Under strict -std=c11 the POSIX
-API (getopt, optind, ...) is hidden behind feature-test macros, so without it
-the build fails with "implicit declaration of getopt" / "optind undeclared".
+Note: -D_DEFAULT_SOURCE is required. Under strict -std=c11 the POSIX and BSD
+APIs (getopt, optind, struct dirent's d_type/DT_*, st_mtim, ...) are hidden
+behind feature-test macros, so without it the build fails with errors like
+"implicit declaration of getopt" / "optind undeclared" / "DT_DIR undeclared".
+
+It is a superset of -D_POSIX_C_SOURCE=200809L (which exposes POSIX but NOT the
+BSD d_type/st_mtim), so all tools share this one flag. Set it in the Makefile
+CFLAGS, never as a per-file #define.

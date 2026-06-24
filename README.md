@@ -158,16 +158,20 @@ The per-tool Makefiles support the same commands from inside the tool's director
 The Makefiles compile every tool with a strict warning set so mistakes are caught at compile time rather than at runtime. To compile a tool by hand with the same checks:
 
 ```sh
-gcc -std=c11 -D_POSIX_C_SOURCE=200809L \
+gcc -std=c11 -D_DEFAULT_SOURCE \
     -Wall -Wextra -Wpedantic -Wshadow \
     -Wstrict-prototypes -Wmissing-prototypes -Wconversion -Werror \
     -o jekwc jekwc.c
 ```
 
 - `-std=c11 -Wpedantic` — strict ISO C11, no silent compiler extensions.
-- `-D_POSIX_C_SOURCE=200809L` — **required.** Strict ISO mode hides the POSIX API (`open`, `read`, `getopt`, …); this macro exposes it. Without it the build fails with "implicit declaration of `getopt`".
+- `-D_DEFAULT_SOURCE` — **required.** Strict ISO mode hides the POSIX + BSD APIs (`getopt`, `read`, `struct dirent`'s `d_type`/`DT_*`, `st_mtim`, …); this macro exposes them. It is a superset of `-D_POSIX_C_SOURCE=200809L`, so every tool shares the one flag. Without it the build fails with errors like "implicit declaration of `getopt`" or "`DT_DIR` undeclared".
 - `-Wall -Wextra -Wshadow -Wstrict-prototypes -Wmissing-prototypes -Wconversion` — the warning set.
 - `-Werror` — every warning is a build failure.
+
+### Editor / clangd setup
+
+`compile_flags.txt` at the repo root hands these same flags to [clangd](https://clangd.llvm.org/) (the LSP behind most editors' C support), so your editor sees the same declarations the build does. Without it, clangd falls back to plain ISO C and wrongly flags POSIX/BSD symbols like `getopt` or `DT_DIR` as undeclared — even though `make` compiles fine. The file is plain text, needs no tooling installed, and is committed so it travels with the repo; an editor with no clangd simply gets no inline diagnostics (the build is unaffected).
 
 **If your shell says "command not found"** after installing, `~/.local/bin` is not in your `PATH`. Add this line to your `~/.bashrc` (or `~/.zshrc` if you use zsh):
 
