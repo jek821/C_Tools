@@ -1,22 +1,6 @@
 REFACTOR PLAN: Bring jek_ls to jek_cat / jek_wc quality
 =========================================================
 
-Reference: jek_cat and jek_wc are the gold standard — strict CFLAGS
-(Docs/strict_compile.txt), clean POSIX syscalls, full error handling,
-a header file with prototypes, a test.sh suite, and a Makefile with a
-`test` target. jek_wc is already complete (jekwc.h + test.sh exist).
-
-
-─────────────────────────────────────────
-COMPLETED
-─────────────────────────────────────────
-  [x] Renamed jek_ls.c -> jekls.c (was misnamed; Makefile already expected jekls.c)
-  [x] jek_ls/Makefile: adopted strict CFLAGS, added test target
-  [x] jek_ls/jekls.h: created with fd_to_buff prototype
-  [x] jek_ls/test.sh: created (10 test cases)
-  [x] Root Makefile: added || exit 1 to all/install/uninstall/clean loops
-  [x] .gitignore: already correct — jek_*/jek* pattern covers all binaries
-
 
 ─────────────────────────────────────────
 REMAINING: SOURCE FIXES (jek_ls/jekls.c)
