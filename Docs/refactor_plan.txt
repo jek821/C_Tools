@@ -1,73 +1,92 @@
-REFACTOR PLAN: Bring jek_wc and jek_ls to jek_cat quality
-==========================================================
+REFACTOR PLAN: jek_ls + project-wide cleanup
+============================================
 
-Reference: jek_cat is the gold standard — clean POSIX syscalls, full error
-handling, 8-case test suite in test.sh, correct Makefile with a `test` target.
+Reference: jek_cat and jek_wc are the gold standard — clean POSIX syscalls,
+full error handling, a test.sh suite, a header with prototypes, and a Makefile
+that builds under the strict standard (Docs/strict_compile.txt) and has a
+`test` target. jek_ls is the only tool not yet at this bar.
 
-
-─────────────────────────────────────────
-jek_wc (jek_wc/jekwc.c + Makefile + new test.sh)
-─────────────────────────────────────────
-
-SOURCE FIXES (jekwc.c)
-  1. Zero-initialize opts struct:
-       Options opts;  →  Options opts = {0};
-  2. Initialize counters to zero:
-       ssize_t bytes = 0;
-       long lines = 0;
-       long words = 0;
-  3. Validate argc: before accessing argv[flag_count + 1], verify the index
-     is within bounds; if not, print usage to stderr and return 1.
-  4. Handle handle_flags() returning -1 (invalid flag): return 1 in main.
-  5. Remove debug comment "// hello hello" at line 62.
-
-MAKEFILE FIXES (jek_wc/Makefile)
-  Add test target and update .PHONY:
-    test: $(TARGET)
-        bash test.sh
-    .PHONY: install uninstall clean test
-
-NEW FILE: jek_wc/test.sh
-  Mirror jek_cat/test.sh structure (check() helper, mktemp setup, teardown).
-  Test cases:
-    1.  -l line count on known content
-    2.  -w word count on known content
-    3.  -b byte count on known content
-    4.  -blw combined on a file
-    5.  Large file (>4096 bytes) — counts correct across buffer boundary
-    6.  Words split across buffer boundary — count correct
-    7.  Empty file — all counts 0
-    8.  Valid file exits 0
-    9.  Missing file exits 1
-    10. No args exits 1
-    11. Invalid flag exits 1
+(The jek_wc section of this plan is complete and has been removed.)
 
 
 ─────────────────────────────────────────
-jek_ls (jek_ls/jek_ls.c + Makefile + new test.sh)
+PROJECT-WIDE CLEANUP
 ─────────────────────────────────────────
+  1. Add a .gitignore for build artifacts — compiled binaries are currently
+     committed. Tracked binaries to remove (`git rm --cached`): jek_cat/jekcat,
+     jek_ls/main, jek_wc/main, jek_wc/test. Suggested .gitignore:
+       jek_cat/jekcat
+       jek_wc/jekwc
+       jek_ls/jekls
+       # stale artifacts from old -o main / -o test builds
+       main
+       test
+  2. Delete the stale/misnamed binaries jek_ls/main, jek_wc/main, jek_wc/test —
+     leftovers from old `-o main` / `-o test` builds. They predate the current
+     TARGET names (jekls/jekwc/jekcat) and `make clean` does not remove them.
+  3. (Optional) Root Makefile: all/install/clean swallow a mid-loop failure —
+     `for tool ...; do $(MAKE) -C $$tool ...; done` only surfaces the LAST
+     tool's exit status. Add `|| exit 1` so a failure in any tool stops the run.
+     (The `test` target is already resilient by design.)
 
+
+─────────────────────────────────────────
+NAMING (do this first — the build is broken)
+─────────────────────────────────────────
+  Rename the source file:  jek_ls.c  ->  jekls.c
+
+  Convention: the directory is jek_<tool> (with underscore), but the
+  source/header/binary are jek<tool> (no underscore) — matching jekcat.c /
+  jekwc.c and the tool names in Docs/plan.txt. The Makefile already expects
+  SRC = jekls.c, so it is the FILE that is misnamed. Renaming it also fixes
+  `make`, which currently dies with "No rule to make target 'jekls.c'".
+
+
+─────────────────────────────────────────
 MAKEFILE FIXES (jek_ls/Makefile)
-  Fix broken source name: SRC = jek_ls.c  (currently wrongly set to jekls.c)
-  Add test target and update .PHONY:
-    test: $(TARGET)
-        bash test.sh
-    .PHONY: install uninstall clean test
+─────────────────────────────────────────
+  1. Adopt the strict standard (match jek_wc / jek_cat):
+       CFLAGS = -std=c11 -D_POSIX_C_SOURCE=200809L -Wall -Wextra -Wpedantic \
+                -Wshadow -Wstrict-prototypes -Wmissing-prototypes \
+                -Wconversion -Werror
+  2. Add test target and update .PHONY:
+       test: $(TARGET)
+           bash test.sh
+       .PHONY: install uninstall clean test
 
-SOURCE FIXES (jek_ls/jek_ls.c)
+
+─────────────────────────────────────────
+SOURCE FIXES (jekls.c)
+─────────────────────────────────────────
   1. Fix memory leak: replace malloc(sizeof(struct stat)) with a stack-allocated
      struct stat buff; and pass &buff to fd_to_buff().
-  2. Remove debug mtime output: delete the localtime/strftime/printf("Formatted
+  2. Check fd_to_buff()'s return value at the call site (currently ignored): on
+     failure, skip that entry's time output instead of reading a garbage buff.
+  3. Remove debug mtime output: delete the localtime/strftime/printf("Formatted
      time: ...") block — not standard ls default behavior.
-  3. Skip "." and ".." entries by default (standard ls behavior).
-  4. Add -a flag via getopt: without -a, skip entries where d_name[0] == '.'.
-  5. Accept optional path argument: if argc > 1, opendir(argv[optind]);
-     otherwise opendir(".").
-  6. Reset ANSI color after directory names: append \033[0m so subsequent
+  4. Skip "." and ".." entries by default (standard ls behavior).
+  5. Add -a flag via getopt: without -a, skip entries where d_name[0] == '.'.
+  6. Accept optional path argument: if a non-flag arg is present,
+     opendir(argv[optind]); otherwise opendir(".").
+  7. Reset ANSI color after directory names: append \033[0m so subsequent
      output isn't colored.
-  7. Return 1 on any error (opendir failure, etc.), 0 on success.
+  8. Return 1 on any error (opendir failure, etc.), 0 on success.
 
+  Strict-build conformance (required by the new CFLAGS):
+  9.  Add a header jekls.h with prototypes (e.g. fd_to_buff) — mirrors
+      jekcat.h / jekwc.h and satisfies -Wmissing-prototypes / -Wstrict-prototypes.
+  10. The unused argc/argv warnings disappear once getopt and the path argument
+      (fixes 5 & 6) actually use them.
+  11. Remove the unused <fcntl.h> include.
+  12. Feature macros: -D_POSIX_C_SOURCE alone does NOT expose d_type (DT_DIR)
+      or st_mtim. Keep `#define _DEFAULT_SOURCE` at the very top of the file
+      (before any include) so those stay visible under the strict build.
+
+
+─────────────────────────────────────────
 NEW FILE: jek_ls/test.sh
+─────────────────────────────────────────
+  Mirror jek_cat/test.sh structure (check() helper, mktemp setup, teardown).
   Create a temp directory with known contents (files, hidden files, a subdir).
   Test cases:
     1.  Lists files in a given directory
@@ -83,13 +102,9 @@ NEW FILE: jek_ls/test.sh
 ─────────────────────────────────────────
 VERIFICATION
 ─────────────────────────────────────────
-
-  make clean && make && make test   # builds and runs all three test suites
+  make clean && make && make test   # all three tools build + tests pass
 
   Manual spot-checks:
-    echo "hello world" > /tmp/t.txt
-    ./jek_wc/jekwc -blw /tmp/t.txt   # Lines: 1 / Words: 2 / Bytes: 12
-
-    ./jek_ls/jekls /tmp              # lists /tmp
-    ./jek_ls/jekls                   # lists current dir
-    ./jek_ls/jekls -a                # also shows dotfiles
+    ./jek_ls/jekls /tmp     # lists /tmp
+    ./jek_ls/jekls          # lists current dir
+    ./jek_ls/jekls -a       # also shows dotfiles

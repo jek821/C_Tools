@@ -17,7 +17,15 @@ uninstall:
 clean:
 	for tool in $(TOOLS); do $(MAKE) -C $$tool clean; done
 
+# Runs each tool's test suite. Tools without a `test` target are skipped
+# (with a note) instead of aborting the whole run.
 test:
-	for tool in $(TOOLS); do $(MAKE) -C $$tool test; done
+	for tool in $(TOOLS); do \
+		if $(MAKE) -C $$tool -n test >/dev/null 2>&1; then \
+			$(MAKE) -C $$tool test; \
+		else \
+			echo "Skipping $$tool (no test target)"; \
+		fi; \
+	done
 
 .PHONY: all install uninstall clean test

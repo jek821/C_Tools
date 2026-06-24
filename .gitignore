@@ -1,0 +1,13 @@
+# Compiled tool binaries.
+# Each tool builds to jek_<tool>/jek<tool> with no extension (e.g. jek_wc/jekwc).
+# Ignore those binaries, but keep all source, headers, and shell scripts.
+# This needs no edits when you add a new tool, as long as it follows the
+# jek_<tool>/jek<tool> naming convention.
+jek_*/jek*
+!jek_*/*.c
+!jek_*/*.h
+!jek_*/*.sh
+
+# Stale artifacts from ad-hoc `gcc -o main` / `gcc -o test` during development.
+jek_*/main
+jek_*/test

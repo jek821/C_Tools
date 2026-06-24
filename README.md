@@ -20,6 +20,24 @@ Each tool is written with the following in mind:
 - **Handle errors correctly.** Every syscall return value is checked. Partial writes are retried. Resources are cleaned up on failure paths.
 - **Keep it simple and self-contained.** No unnecessary dependencies or abstractions beyond what the problem requires.
 
+## Naming conventions
+
+Every tool follows the same layout so the build and tooling work without per-tool special-casing:
+
+- **Directory:** `jek_<tool>` — *with* an underscore (e.g. `jek_cat`, `jek_wc`, `jek_ls`).
+- **Source, header, and binary:** `jek<tool>` — *no* underscore (e.g. `jekcat.c`, `jekwc.h`, the `jekls` binary).
+
+So a tool named `foo` lives in `jek_foo/` and contains:
+
+| File | Purpose |
+|------|---------|
+| `jekfoo.c` | Source |
+| `jekfoo.h` | Header with prototypes (and any shared types) |
+| `Makefile` | Builds `jekfoo`, with `install` / `uninstall` / `clean` / `test` targets |
+| `test.sh` | Test suite, runnable via `make test` |
+
+The compiled binary is `jek_foo/jekfoo` (no extension). The root `.gitignore` relies on this convention — it ignores `jek_*/jek*` while keeping `*.c` / `*.h` / `*.sh`, so build artifacts are never committed and **no `.gitignore` edits are needed when you add a new tool.**
+
 ## Tools
 
 | Tool | Description |
@@ -104,7 +122,7 @@ The repo uses a two-level Makefile structure:
 - **Root `Makefile`** — orchestrates all tools from one place. Run from the repo root.
 - **Per-tool `Makefile`** — builds and installs that tool in isolation. Run from inside a tool's directory.
 
-Both support the same targets (`all`, `install`, `uninstall`, `clean`). The root one just delegates each target down to every tool's Makefile using `make -C <dir>`.
+Both support the same targets (`all`, `install`, `uninstall`, `clean`, `test`). The root one just delegates each target down to every tool's Makefile using `make -C <dir>`.
 
 ### Install everything at once
 
@@ -131,8 +149,25 @@ Useful when you only want to build or reinstall one tool without touching the ot
 | `make install` | Compile and install all tools to `~/.local/bin` |
 | `make uninstall` | Remove all tools from `~/.local/bin` |
 | `make clean` | Remove compiled binaries from all project folders |
+| `make test` | Build and run each tool's test suite (tools without tests are skipped) |
 
 The per-tool Makefiles support the same commands from inside the tool's directory.
+
+### Compiling directly (strict checks)
+
+The Makefiles compile every tool with a strict warning set so mistakes are caught at compile time rather than at runtime. To compile a tool by hand with the same checks:
+
+```sh
+gcc -std=c11 -D_POSIX_C_SOURCE=200809L \
+    -Wall -Wextra -Wpedantic -Wshadow \
+    -Wstrict-prototypes -Wmissing-prototypes -Wconversion -Werror \
+    -o jekwc jekwc.c
+```
+
+- `-std=c11 -Wpedantic` — strict ISO C11, no silent compiler extensions.
+- `-D_POSIX_C_SOURCE=200809L` — **required.** Strict ISO mode hides the POSIX API (`open`, `read`, `getopt`, …); this macro exposes it. Without it the build fails with "implicit declaration of `getopt`".
+- `-Wall -Wextra -Wshadow -Wstrict-prototypes -Wmissing-prototypes -Wconversion` — the warning set.
+- `-Werror` — every warning is a build failure.
 
 **If your shell says "command not found"** after installing, `~/.local/bin` is not in your `PATH`. Add this line to your `~/.bashrc` (or `~/.zshrc` if you use zsh):
 

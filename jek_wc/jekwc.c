@@ -1,130 +1,197 @@
+#include "jekwc.h"
+#include <fcntl.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
 
-int optind;
+#define DEBUG_ENABLED 0
 
-typedef struct {
-    int show_bytes;
-    int show_words;
-    int show_lines;
-} Flags;
+#if DEBUG_ENABLED
+#define LOG_DEBUG(...)                                                         \
+  do {                                                                         \
+    fprintf(stderr, "[DEBUG] (%s:%d in %s): ", __FILE__, __LINE__, __func__);  \
+    fprintf(stderr, __VA_ARGS__);                                              \
+    fprintf(stderr, "\n");                                                     \
+  } while (0)
+#else
+#define LOG_DEBUG(...)                                                         \
+  do {                                                                         \
+  } while (0)
+#endif
 
-typedef struct {
-    size_t byte_count;
-    long word_count;
-    long line_count;
-} File_Data;
-
-int usage_error() {
-    fprintf(stderr, "==================================================\n");
-    fprintf(stderr, "USAGE ERROR:\nCorrect Usage: ./jekwc <flags> <file>\n");
-    fprintf(stderr, "Flags:\n-b (print number of bytes)\n-w (print number of words)\n-l "
-                    "(print number of lines)\nNo flags results in all values being "
-                    "printed\n");
-    fprintf(stderr, "==================================================\n");
+void usage_error(void) {
+  fprintf(stderr, "==================================================\n");
+  fprintf(stderr, "USAGE ERROR:\nCorrect Usage: ./jekwc <flags> <file>\n");
+  fprintf(stderr,
+          "Flags:\n-b (print number of bytes)\n-w (print number of words)\n-l "
+          "(print number of lines)\nNo flags results in all values being "
+          "printed\n");
+  fprintf(stderr, "==================================================\n");
 }
 
 int handle_flags(const int *argc, char *argv[], Flags *flags) {
-    int opt;
+  int opt;
 
-    while ((opt = getopt(*argc, argv, "bwl")) != -1) {
-        switch (opt) {
-        case 'b':
-            flags->show_bytes = 1;
-            printf("-b flag detected!\n");
-            break;
-        case 'w':
-            flags->show_words = 1;
-            printf("-w flag detected!\n");
-            break;
-        case 'l':
-            flags->show_lines = 1;
-            printf("-l flag detected!\n");
-            break;
-        case '?':
-            usage_error();
-            return -1;
-        }
+  while ((opt = getopt(*argc, argv, "bwl")) != -1) {
+    switch (opt) {
+    case 'b':
+      flags->show_bytes = 1;
+      break;
+    case 'w':
+      flags->show_words = 1;
+      break;
+    case 'l':
+      flags->show_lines = 1;
+      break;
+    case '?':
+      usage_error();
+      return -1;
     }
-    if (optind == 1) {
-        flags->show_words = 1;
-        flags->show_bytes = 1;
-        flags->show_lines = 1;
-    }
+  }
+  // No flags supplied: default to printing all three values.
+  if (!flags->show_bytes && !flags->show_words && !flags->show_lines) {
+    flags->show_words = 1;
+    flags->show_bytes = 1;
+    flags->show_lines = 1;
+  }
+  return 0;
 }
 
-Flags *initialize_flags() {
-    Flags *flags = (Flags *)malloc(sizeof(Flags));
-    flags->show_bytes = 0;
-    flags->show_lines = 0;
-    flags->show_words = 0;
-    return flags;
+Flags *initialize_flags(void) {
+  Flags *flags = (Flags *)malloc(sizeof(Flags));
+  flags->show_bytes = 0;
+  flags->show_lines = 0;
+  flags->show_words = 0;
+  return flags;
 }
 
 int get_fd(char *file_name) {
-    int fd;
+  int fd;
 
-    if ((fd = open(file_name)) == -1) {
-        perror("Error Opening File");
-        return -1;
-    }
-    return fd;
+  if ((fd = open(file_name, O_RDONLY)) == -1) {
+    perror("Error Opening File");
+    return -1;
+  }
+  return fd;
 }
 
 long lines_from_buff(char *buffer, ssize_t bytes_to_read) {
-    long line_count = 0;
+  long line_count = 0;
 
-    for (ssize_t i = 0; i < bytes_to_read; i++) {
-        if (buffer[i] == '\n') {
-            line_count++;
-        }
+  for (ssize_t i = 0; i < bytes_to_read; i++) {
+    if (buffer[i] == '\n') {
+      line_count++;
     }
+  }
 
-    return line_count;
+  return line_count;
 }
 
-int is_space(char byte) { return byte = }
+int is_space(char byte) {
+  int result = (byte == ' ' || byte == '\t' || byte == '\n' || byte == '\v' ||
+                byte == '\f' || byte == '\r');
+  LOG_DEBUG("is space: %d", result);
+  return result;
+}
 
 long words_from_buff(char *buffer, ssize_t bytes_to_read, int *in_word) {
-    long word_count = 0;
+  LOG_DEBUG("entered words from buff");
+  long word_count = 0;
 
-    for (ssize_t i; i < bytes_to_read; i++) {
-        if
+  for (ssize_t i = 0; i < bytes_to_read; i++) {
+    LOG_DEBUG("Iteration %zu in words from buff loop", i);
+    if (is_space(buffer[i])) {
+      *in_word = 0;
+    } else {
+      if (!*in_word) {
+        word_count++;
+      }
+      *in_word = 1;
     }
+  }
+  return word_count;
 }
 
 int get_data(int fd, File_Data *file_data, Flags *flags) {
-    char byte_buffer[4096];
-    ssize_t bytes_read;
-    while ((bytes_read = read(fd, byte_buffer, sizeof(byte_buffer))) != 0) {
-        if (flags->show_bytes) {
-            file_data->byte_count += bytes_read;
-        }
-        if (flags->show_lines) {
-            file_data->line_count += lines_from_buff(byte_buffer, bytes_read);
-        }
-        if (flags->show_words) {
-            int in_word = 0;
-            file_data->word_count += words_from_buff(byte_buffer, bytes_read, &in_word);
-        }
+  char byte_buffer[4096];
+  ssize_t bytes_read;
+  int in_word = 0;
+  while ((bytes_read = read(fd, byte_buffer, sizeof(byte_buffer))) != 0) {
+    LOG_DEBUG("entering get data while loop");
+
+    if (bytes_read == -1) {
+      perror("Read Error");
+      return -1;
     }
-    return 0;
+
+    if (flags->show_bytes) {
+      file_data->byte_count += (size_t)bytes_read;
+    }
+    if (flags->show_lines) {
+      file_data->line_count += lines_from_buff(byte_buffer, bytes_read);
+    }
+    if (flags->show_words) {
+      file_data->word_count +=
+          words_from_buff(byte_buffer, bytes_read, &in_word);
+    }
+  }
+  return 0;
+}
+
+void print_data(Flags *flags, File_Data *file_data) {
+  if (flags->show_bytes) {
+    fprintf(stdout, "Bytes: %zu\n", file_data->byte_count);
+  }
+  if (flags->show_lines) {
+    fprintf(stdout, "Lines: %ld\n", file_data->line_count);
+  }
+  if (flags->show_words) {
+    fprintf(stdout, "Words: %ld\n", file_data->word_count);
+  }
 }
 
 int main(int argc, char *argv[]) {
-    Flags *flags = initialize_flags();
-    File_Data *file_data = (File_Data *)malloc(sizeof(File_Data));
+  Flags *flags = initialize_flags();
+  File_Data *file_data = (File_Data *)calloc(1, sizeof(File_Data));
 
-    // Handle flags
-    int handle_flag_result = handle_flags(&argc, argv, flags);
-    printf("%d\n", argc);
-    printf("%d\n", optind);
+  // Handle flags
+  if (handle_flags(&argc, argv, flags) == -1) {
+    free(flags);
+    free(file_data);
+    return 1;
+  }
 
-    // Handle file (get file descriptor)
-    int fd = get_fd(argv[optind]);
-    // Collect data from file (fill File_Data struct)
+  LOG_DEBUG("argc: %d", argc);
+  LOG_DEBUG("optind: %d", optind);
 
-    // Send file data to STDOUT
+  // A file argument must follow the flags.
+  if (optind >= argc) {
+    usage_error();
+    free(flags);
+    free(file_data);
+    return 1;
+  }
+
+  // Handle file (get file descriptor)
+  int fd = get_fd(argv[optind]);
+  LOG_DEBUG("File Descriptor: %d", fd);
+  if (fd == -1) {
+    free(flags);
+    free(file_data);
+    return 1;
+  }
+
+  // Collect data from file (fill File_Data struct)
+  int data_result = get_data(fd, file_data, flags);
+
+  // Send file data to STDOUT
+  if (data_result != -1) {
+    print_data(flags, file_data);
+  }
+
+  close(fd);
+  free(flags);
+  free(file_data);
+  return data_result == -1 ? 1 : 0;
 }
