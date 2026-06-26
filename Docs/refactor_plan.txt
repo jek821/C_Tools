@@ -37,7 +37,7 @@ NAMING (do this first — the build is broken)
 
   Convention: the directory is jek_<tool> (with underscore), but the
   source/header/binary are jek<tool> (no underscore) — matching jekcat.c /
-  jekwc.c and the tool names in Docs/plan.txt. The Makefile already expects
+  jekwc.c and the tool names in Docs/sync_plan.txt. The Makefile already expects
   SRC = jekls.c, so it is the FILE that is misnamed. Renaming it also fixes
   `make`, which currently dies with "No rule to make target 'jekls.c'".
 

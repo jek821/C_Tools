@@ -1,0 +1,100 @@
+jekvpn roadmap
+==============
+
+Goal: build a small mesh VPN with a coordination server (jekvpn) --- a
+miniature, self-hosted Tailscale/headscale. Each tool below teaches a skill
+that jekvpn directly depends on.
+
+Two planes, like the real thing:
+  - DATA PLANE  (the WireGuard analog): encrypted peer-to-peer UDP tunnels
+                that carry the actual traffic. The coordinator never sees it.
+  - CONTROL PLANE (the headscale analog): a server nodes register with. It
+                hands each node a "peer map" --- every other node's public key,
+                virtual IP, and real endpoint (IP:port). This is what headscale
+                IS. Understanding it is the point of the project.
+
+
+--- SHARED TRUNK (already in sync_plan.txt --- reuse, don't rebuild) ---
+
+  jekvpn is a SECOND capstone hanging off the same ladder as jeksync. The
+  control plane is a wire protocol over sockets served by a concurrent daemon
+  --- skills sync_plan.txt already builds. Reuse these rungs directly:
+
+  jekencrypt (sync Phase 6) -- libsodium keygen, nonces, encrypt/decrypt.
+                               EXTEND: from symmetric file encryption to
+                               public-key per-packet boxing (X25519 +
+                               crypto_box) so each node encrypts to a peer's
+                               public key.
+  jekproto   (sync Phase 8) -- length-prefixed, typed binary messages. The
+                               control protocol IS jekproto: message types
+                               REGISTER, ASSIGN_IP, PEER_MAP, PEER_UP/DOWN.
+  jeksend /
+  jekrecv    (sync Phase 9) -- socket/connect (node->coordinator client) and
+                               bind/listen/accept (coordinator server).
+  jekpar     (sync Phase 7) -- pthreads/mutex/work queue: the coordinator
+                               serving many nodes at once.
+  jeksig     (sync Phase 7) -- SIGTERM/graceful shutdown: both daemons need it.
+
+  ~70% of jekvpn is the trunk above. Only the data plane below is new.
+
+
+--- DATA PLANE (C) --- new rungs ---
+
+PHASE V1 - Virtual interface
+  jektun  -- open /dev/net/tun, ioctl(TUNSETIFF) to create a tun device,
+             bring it up, read/write raw IP packets. Parse the IP header
+             (src/dest address) of outgoing packets.
+             ("jekcat for a network interface" --- the one truly new
+              low-level skill. Needs sudo / CAP_NET_ADMIN.)
+
+PHASE V2 - Datagram I/O + event loop
+  jekmux  -- UDP datagram sockets (sendto/recvfrom) and poll() to drive TWO
+             fds at once: the tun device and the UDP socket.
+             (sync's networking rungs are TCP streams; the data plane is
+              connectionless datagrams plus your first real event loop.)
+
+
+--- CONTROL PLANE + CAPSTONE (C) ---
+
+PHASE V3 - The coordinator (the headscale analog)
+  jekcoord -- a server that:
+                - accepts node registrations (jekproto REGISTER over jekrecv)
+                - assigns each node a virtual IP from a pool (e.g. 10.99.0.0/24)
+                - records each node's public key + real endpoint (learned from
+                  the source address of its packets --- poor-man's STUN, exactly
+                  how Tailscale discovers endpoints)
+                - pushes every node an updated PEER_MAP on join/leave
+              = jekproto served over jekrecv + jekpar (many nodes) + jeksig.
+              This binary is, in miniature, headscale.
+
+PHASE V4 - The node + composition
+  jeknode -- the client daemon. Composes the whole ladder:
+                jektun      read/write the tunnel
+              + jekmux      poll the tun fd and UDP socket; route by dest IP
+              + jekencrypt  box each packet to the destination peer's key
+              + jekproto /
+                jeksend     register with jekcoord, receive the PEER_MAP
+              + jeksig      clean shutdown, tear down the tun device
+
+             Core loop:
+               tun  -> read IP packet -> look up dest virtual IP in peer map
+                    -> encrypt to that peer -> sendto its endpoint
+               sock -> recvfrom -> decrypt+verify -> write packet to tun
+
+PHASE V5 - NAT traversal (stretch --- no analog anywhere in either plan)
+  jekhole -- UDP hole punching coordinated by jekcoord, with a relay fallback
+             (a DERP-style encrypted relay) for peers that can't connect
+             directly. The genuinely hard problem Tailscale exists to solve.
+             Optional; jekvpn is a complete, working mesh without it.
+
+
+--- TESTING ---
+  No second machine needed. Linux network namespaces (ip netns) stand up
+  several isolated "hosts" on one box; run jekcoord in one and a jeknode in
+  each of the others to exercise a full mesh locally, in the test.sh style.
+
+
+--- shared vs new ---
+  shared with sync_plan.txt : jekencrypt, jekproto, jeksend, jekrecv,
+                              jekpar, jeksig
+  new for jekvpn            : jektun, jekmux, jekcoord, jeknode (+ jekhole)

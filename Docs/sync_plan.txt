@@ -42,24 +42,12 @@ PHASE 9 - Networking (C)
   jekrecv -- server: socket(), bind(), listen(), accept(), recv() and write to disk
              layer jekencrypt on top to send encrypted files
 
---- RUST PIVOT ---
-  "We've built jeksync piece by piece in C. Now we know exactly what breaks
-   at scale: silent data races, unhandled SIGPIPE, error codes you can forget
-   to check, protocol parsing with no exhaustiveness guarantees.
-   Here's how Rust closes each of those holes."
-
-PHASE 10 - Rust Rewrite: Wire Protocol + Networking
-  jekproto-rs -- rewrite jekproto in Rust: enums + pattern matching vs C structs,
-                 exhaustive message handling, Result for parse errors
-  jeknet-rs   -- rewrite jeksend/jekrecv in Rust with tokio async I/O,
-                 Arc<Mutex<T>> for shared state, fearless concurrency
-
-PHASE 11 - jeksync (Rust)
-  combine everything in Rust:
+PHASE 10 - jeksync
+  combine everything:
     - jekfind  to walk a directory tree
     - jeksum   to hash files and detect what changed
     - jekdiff  to compare local and remote state
     - jekencrypt to encrypt before sending
-    - jekproto-rs / jeknet-rs to transfer over the wire
+    - jekproto / jeksend / jekrecv to transfer over the wire
 
-tools: 14 C tools + 2 Rust rewrites + jeksync
+tools: 14 C tools + jeksync
