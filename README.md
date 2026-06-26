@@ -1,4 +1,4 @@
-# C Tools
+# Jek Utils
 
 Reimplementations of standard Unix CLI tools written in C from scratch.
 
