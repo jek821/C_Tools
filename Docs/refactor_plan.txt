@@ -4,105 +4,29 @@ REFACTOR PLAN: jek_ls + project-wide cleanup
 Reference: jek_cat and jek_wc are the gold standard — clean POSIX syscalls,
 full error handling, a test.sh suite, a header with prototypes, and a Makefile
 that builds under the strict standard (Docs/strict_compile.txt) and has a
-`test` target. jek_ls is the only tool not yet at this bar.
+`test` target.
 
-(The jek_wc section of this plan is complete and has been removed.)
+STATUS: This plan is complete.
+  - The jek_wc section was completed and removed earlier.
+  - PROJECT-WIDE CLEANUP is done: .gitignore covers all build artifacts
+    (jek_*/jek* with source/header/script un-ignores; stale jek_*/main and
+    jek_*/test patterns), no binaries are tracked, no stale binaries remain on
+    disk, and the root Makefile's all/install/uninstall/clean loops already
+    use `|| exit 1`.
+  - jek_ls is now at the gold-standard bar: jek_ls.c was renamed to jekls.c;
+    the Makefile uses the strict CFLAGS and has a `test` target; jekls.h
+    carries a real prototype (list_dir); test.sh mirrors jek_cat/test.sh.
+  - SOURCE FIXES (jekls.c) done: getopt -a flag, optional path argument,
+    dotfiles (incl. "." / "..") hidden unless -a, directory names colored and
+    reset, returns 1 on error / 0 on success, debug mtime block removed. The
+    leaking malloc'd struct stat and the unchecked fd_to_buff()/stat() were
+    deleted outright rather than patched, since removing the debug time output
+    left them with no caller; directory detection uses dirent d_type. Unused
+    <fcntl.h>/<time.h>/<sys/stat.h>/<stdlib.h> includes removed.
 
-
-─────────────────────────────────────────
-PROJECT-WIDE CLEANUP
-─────────────────────────────────────────
-  1. Add a .gitignore for build artifacts — compiled binaries are currently
-     committed. Tracked binaries to remove (`git rm --cached`): jek_cat/jekcat,
-     jek_ls/main, jek_wc/main, jek_wc/test. Suggested .gitignore:
-       jek_cat/jekcat
-       jek_wc/jekwc
-       jek_ls/jekls
-       # stale artifacts from old -o main / -o test builds
-       main
-       test
-  2. Delete the stale/misnamed binaries jek_ls/main, jek_wc/main, jek_wc/test —
-     leftovers from old `-o main` / `-o test` builds. They predate the current
-     TARGET names (jekls/jekwc/jekcat) and `make clean` does not remove them.
-  3. (Optional) Root Makefile: all/install/clean swallow a mid-loop failure —
-     `for tool ...; do $(MAKE) -C $$tool ...; done` only surfaces the LAST
-     tool's exit status. Add `|| exit 1` so a failure in any tool stops the run.
-     (The `test` target is already resilient by design.)
-
-
-─────────────────────────────────────────
-NAMING (do this first — the build is broken)
-─────────────────────────────────────────
-  Rename the source file:  jek_ls.c  ->  jekls.c
-
-  Convention: the directory is jek_<tool> (with underscore), but the
-  source/header/binary are jek<tool> (no underscore) — matching jekcat.c /
-  jekwc.c and the tool names in Docs/sync_plan.txt. The Makefile already expects
-  SRC = jekls.c, so it is the FILE that is misnamed. Renaming it also fixes
-  `make`, which currently dies with "No rule to make target 'jekls.c'".
-
-
-─────────────────────────────────────────
-MAKEFILE FIXES (jek_ls/Makefile)
-─────────────────────────────────────────
-  1. Adopt the strict standard (match jek_wc / jek_cat):
-       CFLAGS = -std=c11 -D_DEFAULT_SOURCE -Wall -Wextra -Wpedantic \
-                -Wshadow -Wstrict-prototypes -Wmissing-prototypes \
-                -Wconversion -Werror
-  2. Add test target and update .PHONY:
-       test: $(TARGET)
-           bash test.sh
-       .PHONY: install uninstall clean test
-
-
-─────────────────────────────────────────
-SOURCE FIXES (jekls.c)
-─────────────────────────────────────────
-  1. Fix memory leak: replace malloc(sizeof(struct stat)) with a stack-allocated
-     struct stat buff; and pass &buff to fd_to_buff().
-  2. Check fd_to_buff()'s return value at the call site (currently ignored): on
-     failure, skip that entry's time output instead of reading a garbage buff.
-  3. Remove debug mtime output: delete the localtime/strftime/printf("Formatted
-     time: ...") block — not standard ls default behavior.
-  4. Skip "." and ".." entries by default (standard ls behavior).
-  5. Add -a flag via getopt: without -a, skip entries where d_name[0] == '.'.
-  6. Accept optional path argument: if a non-flag arg is present,
-     opendir(argv[optind]); otherwise opendir(".").
-  7. Reset ANSI color after directory names: append \033[0m so subsequent
-     output isn't colored.
-  8. Return 1 on any error (opendir failure, etc.), 0 on success.
-
-  Strict-build conformance (required by the new CFLAGS):
-  9.  Add a header jekls.h with prototypes (e.g. fd_to_buff) — mirrors
-      jekcat.h / jekwc.h and satisfies -Wmissing-prototypes / -Wstrict-prototypes.
-  10. The unused argc/argv warnings disappear once getopt and the path argument
-      (fixes 5 & 6) actually use them.
-  11. Remove the unused <fcntl.h> include.
-  12. Feature macros: -D_POSIX_C_SOURCE alone does NOT expose d_type (DT_DIR)
-      or st_mtim. Use -D_DEFAULT_SOURCE (a superset) in the Makefile CFLAGS
-      instead — no per-file #define. All three tools now share this one flag.
-
-
-─────────────────────────────────────────
-NEW FILE: jek_ls/test.sh
-─────────────────────────────────────────
-  Mirror jek_cat/test.sh structure (check() helper, mktemp setup, teardown).
-  Create a temp directory with known contents (files, hidden files, a subdir).
-  Test cases:
-    1.  Lists files in a given directory
-    2.  Does not show hidden files by default
-    3.  -a shows hidden files
-    4.  Subdirectories appear in output
-    5.  Valid directory exits 0
-    6.  Missing directory exits 1
-    7.  No args (lists current dir) exits 0
-    8.  Invalid flag exits 1
-
-
-─────────────────────────────────────────
-VERIFICATION
-─────────────────────────────────────────
+VERIFICATION (passing):
   make clean && make && make test   # all three tools build + tests pass
+                                     # (jek_cat 8/8, jek_wc 26/26, jek_ls 10/10)
 
   Manual spot-checks:
     ./jek_ls/jekls /tmp     # lists /tmp
